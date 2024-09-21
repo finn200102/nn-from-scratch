@@ -34,10 +34,11 @@ class Tensor:
 
     def differentiation(self):
         if self.history["operation"] == Operations.plus:
-            return {"diff1": np.eye(len(np.atleast_1d(
-                self.history["value1"].value))),
-                    "diff2": np.eye(len(np.atleast_1d(
-                        self.history["value2"].value)))}
+            return {
+                    "diff1": np.squeeze(np.eye(len(np.atleast_1d(self.history["value1"].value)))),
+                    "diff2": np.squeeze(np.eye(len(np.atleast_1d(self.history["value2"].value))))
+}
+
 
         if self.history["operation"] == Operations.mul:
             return {"diff1": self.history["value2"].value,
@@ -59,14 +60,8 @@ class Tensor:
 
     def scalar_or_matmul(self, a, b):
         if np.isscalar(a) or np.isscalar(b) or a.shape == () or b.shape == ():
-            print("scalar")
-            print(a)
-            print(b)
             return a * b  # Scalar product
         else:
-            print("matmul")
-            print(a)
-            print(b)
             return a @ b  # Matrix multiplication
 
     def gradient(self, root):
@@ -77,22 +72,18 @@ class Tensor:
                     grad1 = self.scalar_or_matmul(differentiation["diff1"], np.ones_like(self.grads))
                 else:
                     grad1 = self.scalar_or_matmul(differentiation["diff1"], self.grads)
-                print("---")
-                print(grad1) 
-                print(self.history["value1"].grads)
 
-                self.history["value1"].grads += grad1#np.reshape(grad1, self.history["value1"].grads.shape)
+                print(grad1)
+                print(differentiation["diff1"])
+                print(np.ones_like(self.grads))
                 print(self.history["value1"].grads)
+                self.history["value1"].grads += grad1#np.reshape(grad1, self.history["value1"].grads.shape)
             if "value2" in self.history:
                 if self == root:
                     grad2 = self.scalar_or_matmul(differentiation["diff2"], np.ones_like(self.grads))
                 else:
                     grad2 = self.scalar_or_matmul(differentiation["diff2"], self.grads)
-                print("-+-")
-                print(grad2)
-                print(self.history["value1"].grads)
 
                 self.history["value2"].grads +=grad2 #np.reshape(grad2, self.history["value2"].grads.shape)
-                print(self.history["value2"].grads)
 
 
