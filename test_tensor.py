@@ -36,18 +36,25 @@ def test_matmul():
                                          dtype=np.float64)), f"""
     The gradient {A.grads} is not {np.array([[1, 2], [1, 2]], dtype=np.float64)}"""
 
-    assert np.allclose(x.grads, np.array([3, 7], 
+    assert np.allclose(x.grads, np.array([4, 6], 
                                          dtype=np.float64)), f"""
-    The gradient {x.grads} is not {np.array([3, 7], dtype=np.float64)}"""
+    The gradient {x.grads} is not {np.array([4, 7], dtype=np.float64)}"""
+    A = Tensor(np.array([[1, 2], [1,3], [1,2]]))
+    print("---------++++")
+    print(A.value)
+    x = Tensor(np.array([1, 2]))
+    y = A @ x
+    print(y.value)
+    y.gradient(y)
 
 def test_mul():
     a = Tensor(np.array([1, 2]))
     b = Tensor(2)
     c = a * b
     c.gradient(c)
-    print(a.grads)
-    print(b.grads)
+    A = Tensor(np.array([[1, 2], [1,3], [1,2]]))
+
 
 #test_addition()
-#test_matmul()
-test_mul()
+test_matmul()
+#test_mul()
