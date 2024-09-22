@@ -4,6 +4,7 @@ from enum import Enum
 
 class Operations(Enum):
     plus = "+"
+    minus = "-"
     matmul = "@"
     mul = "*"
 
@@ -18,6 +19,12 @@ class Tensor:
                    "value2": other,
                    "operation": Operations.plus}
         return Tensor(self.value + other.value, history=history)
+
+    def __sub__(self, other):
+        history = {"value1": self,
+                   "value2": other,
+                   "operation": Operations.minus}
+        return Tensor(self.value - other.value, history=history)
 
     def __mul__(self, other):
         # elementwise multiplication
@@ -39,6 +46,11 @@ class Tensor:
                     "diff2": np.squeeze(np.eye(len(np.atleast_1d(self.history["value2"].value))))
 }
 
+        if self.history["operation"] == Operations.minus:
+            return {
+                    "diff1": np.squeeze(np.eye(len(np.atleast_1d(self.history["value1"].value)))),
+                    "diff2": - np.squeeze(np.eye(len(np.atleast_1d(self.history["value2"].value))))
+}
 
         if self.history["operation"] == Operations.mul:
             return {"diff1": self.history["value2"].value,
@@ -73,10 +85,6 @@ class Tensor:
                 else:
                     grad1 = self.scalar_or_matmul(differentiation["diff1"], self.grads)
 
-                print(grad1)
-                print(differentiation["diff1"])
-                print(np.ones_like(self.grads))
-                print(self.history["value1"].grads)
                 self.history["value1"].grads += grad1#np.reshape(grad1, self.history["value1"].grads.shape)
             if "value2" in self.history:
                 if self == root:
@@ -84,6 +92,8 @@ class Tensor:
                 else:
                     grad2 = self.scalar_or_matmul(differentiation["diff2"], self.grads)
 
+                print("---")
+                print(differentiation["diff2"])
                 self.history["value2"].grads +=grad2 #np.reshape(grad2, self.history["value2"].grads.shape)
 
 
