@@ -7,6 +7,7 @@ class Operations(Enum):
     minus = "-"
     matmul = "@"
     mul = "*"
+    exp = "exp"
 
 class Tensor:
     def __init__(self, value, history={}):
@@ -39,6 +40,12 @@ class Tensor:
                    "operation": Operations.matmul}
         return Tensor(self.value @ other.value, history=history)
 
+    def exp(self):
+        # exponential elementwise
+        history = {"value1": self,
+                   "operation": Operations.exp}
+        return Tensor(np.exp(self.value), history=history)
+
     def differentiation(self):
         if self.history["operation"] == Operations.plus:
             return {
@@ -55,6 +62,23 @@ class Tensor:
         if self.history["operation"] == Operations.mul:
             return {"diff1": self.history["value2"].value,
                     "diff2": self.history["value1"].value}
+
+        if self.history["operation"] == Operations.exp:
+
+            A = self.history["value1"].value
+            exp_A = np.exp(A)
+
+            if A.ndim == 0:  # Scalar input0
+                return {"diff1": exp_A}
+            elif A.ndim == 1:  # Vector input
+                return {"diff1": np.diag(exp_A)}
+            else:  # Matrix input
+                m, n = A.shape
+                dy_dA = np.zeros((m, n, m*n))
+                i, j = np.indices((m, n))
+                flat_index = i * n + j
+                dy_dA[i, j, flat_index] = exp_A
+                return {"diff1": dy_dA}
 
         if self.history["operation"] == Operations.matmul:
             A = self.history["value1"].value
@@ -73,6 +97,9 @@ class Tensor:
     def scalar_or_matmul(self, a, b):
         if np.isscalar(a) or np.isscalar(b) or a.shape == () or b.shape == ():
             return a * b  # Scalar product
+        elif a.ndim == 3 and b.ndim == 2:
+            # Handle the case for exp of a matrix
+            return np.sum(a * b.flatten(), axis=2)
         else:
             return a @ b  # Matrix multiplication
 
@@ -85,6 +112,11 @@ class Tensor:
                 else:
                     grad1 = self.scalar_or_matmul(differentiation["diff1"], self.grads)
 
+                print("+++")
+                print(differentiation["diff1"])
+                print(grad1)
+                print(np.ones_like(self.grads))
+                print(self.history["value1"].grads)
                 self.history["value1"].grads += grad1#np.reshape(grad1, self.history["value1"].grads.shape)
             if "value2" in self.history:
                 if self == root:
