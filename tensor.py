@@ -7,7 +7,9 @@ class Operations(Enum):
     minus = "-"
     matmul = "@"
     mul = "*"
+    div = "/"
     exp = "exp"
+    sum = "sum"
 
 class Tensor:
     def __init__(self, value, history={}):
@@ -34,6 +36,13 @@ class Tensor:
                    "operation": Operations.mul}
         return Tensor(self.value * other.value, history=history)
 
+    def __truediv__(self, other):
+        # elementwise division
+        history = {"value1": self,
+                   "value2": other,
+                   "operation": Operations.div}
+        return Tensor(self.value / other.value, history=history) 
+
     def __matmul__(self, other):
         history = {"value1": self,
                    "value2": other,
@@ -45,6 +54,12 @@ class Tensor:
         history = {"value1": self,
                    "operation": Operations.exp}
         return Tensor(np.exp(self.value), history=history)
+
+    def sum(self):
+        # only for vectors
+        history = {"value1": self,
+                   "operation": Operations.sum}
+        return Tensor(np.sum(self.value), history=history)
 
     def differentiation(self):
         if self.history["operation"] == Operations.plus:
@@ -63,6 +78,11 @@ class Tensor:
             return {"diff1": self.history["value2"].value,
                     "diff2": self.history["value1"].value}
 
+        if self.history["operation"] == Operations.div:
+            return {"diff1": 1 / self.history["value2"].value,
+                    "diff2": - self.history["value1"].value / (self.history["value2"].value ** 2)}
+
+
         if self.history["operation"] == Operations.exp:
 
             A = self.history["value1"].value
@@ -79,6 +99,9 @@ class Tensor:
                 flat_index = i * n + j
                 dy_dA[i, j, flat_index] = exp_A
                 return {"diff1": dy_dA}
+
+        if self.history["operation"] == Operations.sum:
+            return {"diff1": np.ones_like(self.history["value1"].value)}
 
         if self.history["operation"] == Operations.matmul:
             A = self.history["value1"].value
@@ -112,11 +135,6 @@ class Tensor:
                 else:
                     grad1 = self.scalar_or_matmul(differentiation["diff1"], self.grads)
 
-                print("+++")
-                print(differentiation["diff1"])
-                print(grad1)
-                print(np.ones_like(self.grads))
-                print(self.history["value1"].grads)
                 self.history["value1"].grads += grad1#np.reshape(grad1, self.history["value1"].grads.shape)
             if "value2" in self.history:
                 if self == root:
@@ -124,8 +142,6 @@ class Tensor:
                 else:
                     grad2 = self.scalar_or_matmul(differentiation["diff2"], self.grads)
 
-                print("---")
-                print(differentiation["diff2"])
                 self.history["value2"].grads +=grad2 #np.reshape(grad2, self.history["value2"].grads.shape)
 
 
