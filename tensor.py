@@ -9,7 +9,9 @@ class Operations(Enum):
     mul = "*"
     div = "/"
     exp = "exp"
+    log = "log"
     sum = "sum"
+    soft = "soft"
 
 class Tensor:
     def __init__(self, value, history={}):
@@ -55,6 +57,19 @@ class Tensor:
                    "operation": Operations.exp}
         return Tensor(np.exp(self.value), history=history)
 
+    def log(self):
+        # exponential elementwise
+        history = {"value1": self,
+                   "operation": Operations.log}
+        return Tensor(np.log(self.value), history=history)
+
+    def softmax(self):
+        history = {"value1": self,
+                   "operation": Operations.soft}
+        shiftx = self.value - np.max(self.value)
+        exps = np.exp(shiftx)
+        return Tensor(exps / np.sum(exps), history=history)
+
     def sum(self):
         # only for vectors
         history = {"value1": self,
@@ -75,8 +90,16 @@ class Tensor:
 }
 
         if self.history["operation"] == Operations.mul:
-            return {"diff1": self.history["value2"].value,
-                    "diff2": self.history["value1"].value}
+#            return {"diff1": self.history["value2"].value,
+#                    "diff2": self.history["value1"].value}
+            a = self.history["value1"].value
+            b = self.history["value2"].value
+            if a.ndim == 0 and b.ndim == 0:
+                return {"diff1": b,
+                        "diff2": a}
+            if a.ndim == 1 and b.ndim == 1:
+                return {"diff1": np.diag(b),
+                        "diff2": np.diag(a)}
 
         if self.history["operation"] == Operations.div:
             return {"diff1": 1 / self.history["value2"].value,
@@ -84,7 +107,7 @@ class Tensor:
 
 
         if self.history["operation"] == Operations.exp:
-
+            
             A = self.history["value1"].value
             exp_A = np.exp(A)
 
@@ -99,6 +122,36 @@ class Tensor:
                 flat_index = i * n + j
                 dy_dA[i, j, flat_index] = exp_A
                 return {"diff1": dy_dA}
+
+        if self.history["operation"] == Operations.soft:
+            A = self.history["value1"].value
+            if A.ndim == 0:  # Scalar input
+                return {"diff1": 1}
+            elif A.ndim == 1:  # Vector input
+                softmax_A = stablesoftmax(A)
+                diag_softmax = np.diag(softmax_A)
+                outer_softmax = np.outer(softmax_A, softmax_A)
+                return {"diff1": diag_softmax - outer_softmax}
+
+
+
+        if self.history["operation"] == Operations.log:
+            A = self.history["value1"].value
+            log_A = np.log(A)
+
+            if A.ndim == 0:  # Scalar input
+                return {"diff1": 1 / A}
+            elif A.ndim == 1:  # Vector input
+                return {"diff1": np.diag(1 / A)}
+            else:  # Matrix input
+                m, n = A.shape
+                dy_dA = np.zeros((m, n, m*n))
+                i, j = np.indices((m, n))
+                flat_index = i * n + j
+                dy_dA[i, j, flat_index] = 1 / A
+                return {"diff1": dy_dA}
+
+
 
         if self.history["operation"] == Operations.sum:
             return {"diff1": np.ones_like(self.history["value1"].value)}
@@ -135,6 +188,10 @@ class Tensor:
                 else:
                     grad1 = self.scalar_or_matmul(differentiation["diff1"], self.grads)
 
+               # print("------11111")
+               # print(differentiation["diff1"])
+               # print(self.grads)
+               # print(grad1)
                 self.history["value1"].grads += grad1#np.reshape(grad1, self.history["value1"].grads.shape)
             if "value2" in self.history:
                 if self == root:
@@ -142,6 +199,63 @@ class Tensor:
                 else:
                     grad2 = self.scalar_or_matmul(differentiation["diff2"], self.grads)
 
+               # print("----22222")
+               # print(differentiation["diff2"])
+               # print(self.grads)
+                #print(grad2)
                 self.history["value2"].grads +=grad2 #np.reshape(grad2, self.history["value2"].grads.shape)
 
+    def backprop(self):
+        root = self
+        # Topological sort of the nodes
+        def topological_sort(node, visited, sorted_nodes):
+            if node in visited:
+                return
+            visited.add(node)
+            if "value1" in node.history:
+                topological_sort(node.history["value1"], visited, sorted_nodes)
+            if "value2" in node.history:
+                topological_sort(node.history["value2"], visited, sorted_nodes)
+            sorted_nodes.append(node)
 
+        visited = set()
+        sorted_nodes = []
+        topological_sort(self, visited, sorted_nodes)
+
+        # Reverse the sorted nodes to process in reverse order
+        sorted_nodes.reverse()
+
+        # Compute gradients in reverse order
+        for node in sorted_nodes:
+            node.gradient(root)
+
+
+    def clear(self):
+        # Topological sort of the nodes
+        def topological_sort(node, visited, sorted_nodes):
+            if node in visited:
+                return
+            visited.add(node)
+            if "value1" in node.history:
+                topological_sort(node.history["value1"], visited, sorted_nodes)
+            if "value2" in node.history:
+                topological_sort(node.history["value2"], visited, sorted_nodes)
+            sorted_nodes.append(node)
+
+        visited = set()
+        sorted_nodes = []
+        topological_sort(self, visited, sorted_nodes)
+
+        # Reverse the sorted nodes to process in reverse order
+   # sorted_nodes.reverse()
+
+        # Compute gradients in reverse order
+        for node in sorted_nodes:
+            node.grads = np.zeros(node.value.shape)
+
+
+def stablesoftmax(x):
+    """Compute the softmax of vector x in a numerically stable way."""
+    shiftx = x - np.max(x)
+    exps = np.exp(shiftx)
+    return exps / np.sum(exps)
