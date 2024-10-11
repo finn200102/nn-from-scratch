@@ -2,16 +2,16 @@ import numpy as np
 from sklearn.datasets import fetch_openml
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from tensor import Tensor  # Assuming your Tensor class is in a module
+from tensor import Tensor
+import time
 
 def one_hot_encode(y, num_classes):
     return np.eye(num_classes)[y]
 
-def mnist_one_layer_net(epochs=10, learning_rate=0.001):
+def mnist_one_layer_net(epochs=5, learning_rate=0.01):
     # Load and preprocess data
     mnist = fetch_openml('mnist_784')
-    X, y = mnist.data[:1000], mnist.target[:1000].astype(int)
-    print(X.shape)
+    X, y = mnist.data, mnist.target.astype(int)
     X = StandardScaler().fit_transform(X)
 
     # Split data
@@ -24,18 +24,24 @@ def mnist_one_layer_net(epochs=10, learning_rate=0.001):
     # Initialize weights
     input_size = X_train.shape[1]
     output_size = 10
-    W = Tensor(np.random.randn(output_size, input_size) * 0.01)
-    b = Tensor(np.zeros(output_size))
+    hidden_size = 100
+    W = Tensor(np.random.randn(hidden_size, input_size) * 0.01)
+    W2 = Tensor(np.random.randn(output_size, hidden_size) * 0.01)
+    b = Tensor(np.zeros(hidden_size))
+    b2 = Tensor(np.zeros(output_size))
 
     # Training loop
     for epoch in range(epochs):
+        t1 = time.time()
         total_loss = 0
         for i in range(len(X_train)):
             # Forward pass
             x = Tensor(X_train[i])  # Shape: (784,)
             y_true = Tensor(y_train_onehot[i])  # Shape: (10,)
 
-            z = W @ x + b  # Shape: (10,)
+            z1 = W @ x + b  # Shape: (10,)
+            a1 = z1.relu()
+            z = W2 @ a1 + b2
             y_pred = z.softmax()
             # Compute loss
             y_pred_log = y_pred.log()
@@ -54,15 +60,20 @@ def mnist_one_layer_net(epochs=10, learning_rate=0.001):
 
             # Clear gradients
             loss.clear()
+        t2 = time.time()
+        T = t2-t1
         # Print average loss for the epoch
-        print(f"Epoch {epoch+1}/{epochs}, Avg Loss: {total_loss/len(X_train):.20f}")
+        print(f"Epoch {epoch+1}/{epochs}, Avg Loss: {total_loss/len(X_train):.20f}---time:{T}")
 
     # Evaluate on test set
     correct = 0
     for i in range(len(X_test)):
+
         x = Tensor(X_test[i])  # Shape: (784,)
-        z = W @ x + b  # Shape: (10,)
-        y_pred = z.exp() / z.exp().sum()
+        z1 = W @ x + b  # Shape: (10,)
+        a1 = z1.relu()
+        z = W2 @ a1 + b2
+        y_pred = z.softmax()
         if np.argmax(y_pred.value) == y_test[i]:
             correct += 1
 

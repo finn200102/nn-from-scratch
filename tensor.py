@@ -12,6 +12,7 @@ class Operations(Enum):
     log = "log"
     sum = "sum"
     soft = "soft"
+    relu = "relu"
 
 class Tensor:
     def __init__(self, value, history={}):
@@ -69,6 +70,12 @@ class Tensor:
         shiftx = self.value - np.max(self.value)
         exps = np.exp(shiftx)
         return Tensor(exps / np.sum(exps), history=history)
+
+    def relu(self):
+        history = {"value1": self,
+                   "operation": Operations.relu}
+        return Tensor(np.maximum(0, self.value),
+                      history)
 
     def sum(self):
         # only for vectors
@@ -133,6 +140,16 @@ class Tensor:
                 outer_softmax = np.outer(softmax_A, softmax_A)
                 return {"diff1": diag_softmax - outer_softmax}
 
+        if self.history["operation"] == Operations.relu:
+            A = self.history["value1"].value
+            if A.ndim == 0:
+                if A > 0:
+                    return np.array(1)
+                else:
+                    return np.array(0)
+            elif A.ndim == 1:
+                diag = np.where(A > 0, 1, 0)
+                return {"diff1": np.diag(diag)}
 
 
         if self.history["operation"] == Operations.log:
@@ -186,7 +203,9 @@ class Tensor:
                 if self == root:
                     grad1 = self.scalar_or_matmul(differentiation["diff1"], np.ones_like(self.grads))
                 else:
+                    
                     grad1 = self.scalar_or_matmul(differentiation["diff1"], self.grads)
+
 
                # print("------11111")
                # print(differentiation["diff1"])
